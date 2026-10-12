@@ -1,0 +1,1466 @@
+```
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECO SHIELD – Coastal Infrastructure Corrosion Simulation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            user-select: none;
+            background-color: #030712;
+            color: #f3f4f6;
+        }
+        .font-cinzel { font-family: 'Cinzel', serif; }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+        ::-webkit-scrollbar-thumb { background: #d97706; border-radius: 3px; }
+
+        /* Glassmorphism Card Style */
+        .glass-panel {
+            background: rgba(10, 22, 40, 0.82);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(217, 119, 6, 0.25);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+        }
+
+        /* Gold Gradient Text & Accents */
+        .gold-gradient-text {
+            background: linear-gradient(135deg, #fef08a 0%, #d97706 50%, #92400e 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .gold-glow { box-shadow: 0 0 25px rgba(217, 119, 6, 0.4); }
+        .glass-panel { background: linear-gradient(145deg, rgba(9, 20, 37, 0.91), rgba(13, 29, 49, 0.78)); border-color: rgba(148, 163, 184, 0.22); }
+        #canvas-container canvas { display:block; outline:none; }
+        input[type=range] { accent-color:#38bdf8; cursor:pointer; }
+        .material-sheen { text-shadow: 0 0 18px rgba(56,189,248,.14); }
+    </style>
+</head>
+<body class="w-screen h-screen overflow-hidden">
+
+    <!-- 3D Canvas -->
+    <div id="canvas-container" class="absolute inset-0 w-full h-full z-0"></div>
+
+    <!-- UI Overlay Layer -->
+    <div class="relative z-10 w-full h-full pointer-events-none flex flex-col justify-between p-4 md:p-6">
+        
+        <!-- Top Navigation / Branding Header -->
+        <header class="flex flex-col md:flex-row justify-between items-center gap-4 pointer-events-auto">
+            <div class="glass-panel rounded-2xl px-6 py-3 flex items-center gap-4 border-l-4 border-l-amber-500">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 to-yellow-400 flex items-center justify-center text-slate-950 font-black text-xl shadow-lg">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg md:text-xl font-bold font-cinzel tracking-wider gold-gradient-text uppercase">
+                        ECO SHIELD
+                    </h1>
+                    <p class="text-xs text-slate-400 tracking-wide">Simulasi 3D • Paparan pesisir • Respons material ilustratif</p>
+                </div>
+            </div>
+
+            <!-- Environmental Quick Stats -->
+            <div class="glass-panel rounded-xl px-5 py-2.5 flex items-center gap-6 text-xs text-slate-300">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-sun text-amber-400 text-sm" id="time-icon"></i>
+                    <span id="env-time-label" class="font-semibold text-slate-100">Siang (12:00)</span>
+                </div>
+                <div class="h-4 w-px bg-slate-700"></div>
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-cloud-rain text-blue-400 text-sm"></i>
+                    <span>Hujan: <strong id="env-rain-status" class="text-slate-100">Tidak</strong></span>
+                </div>
+                <div class="h-4 w-px bg-slate-700"></div>
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-temperature-three-quarters text-rose-400 text-sm"></i>
+                    <span>Suhu Air: <strong id="env-temp-display" class="text-slate-100">28.5°C</strong></span>
+                </div>
+                <div class="h-4 w-px bg-slate-700"></div>
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-flask text-teal-400 text-sm"></i>
+                    <span>Salinitas: <strong id="env-salinity-display" class="text-slate-100">35 ppt</strong></span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Center Comparison Titles -->
+        <div class="flex flex-col items-center gap-2 mt-2 pointer-events-none">
+            <div id="comparison-labels" class="hidden md:flex justify-between items-center w-full px-12 pointer-events-none mt-2">
+                <div class="glass-panel px-6 py-2 rounded-xl text-center border-b-2 border-b-rose-500">
+                    <span class="text-xs uppercase tracking-widest text-rose-400 font-bold block">Sampel A</span>
+                    <span class="text-base font-bold text-white font-cinzel">Beton Konvensional (OPC)</span>
+                    <div class="text-[11px] text-rose-400 font-semibold mt-0.5" id="conv-status-badge">Rawan Korosi & Spalling Parah</div>
+                </div>
+
+                <div class="glass-panel px-6 py-2 rounded-xl text-center border-b-2 border-b-emerald-400">
+                    <span class="text-xs uppercase tracking-widest text-emerald-400 font-bold block">Sampel B</span>
+                    <span class="text-base font-bold text-white font-cinzel material-sheen">ECO-SHIELD (Geopolimer)</span>
+                    <div class="text-[11px] text-emerald-400 font-semibold mt-0.5">Perbandingan respons material dalam simulasi</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Interactive Dashboard Container -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 pointer-events-auto items-end">
+            
+            <!-- Left Panel: Structural Health & Breakdown Diagnostics -->
+            <div class="lg:col-span-3 glass-panel rounded-2xl p-4 flex flex-col gap-3">
+                <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
+                    <h3 class="text-sm font-bold gold-gradient-text uppercase font-cinzel tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-burst"></i> Diagnostik Material
+                    </h3>
+                    <span class="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30 font-mono" id="sim-day-badge">DAY 0</span>
+                </div>
+
+                <!-- Beton Konvensional Stats -->
+                <div id="conv-card-box" class="bg-slate-900/60 rounded-xl p-3 border border-slate-800 space-y-1.5 transition-all">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-300 font-semibold flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-rose-500"></span> Beton Konvensional
+                        </span>
+                        <span class="text-rose-400 font-mono font-bold" id="conv-health-txt">100.0%</span>
+                    </div>
+                    <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                        <div id="conv-health-bar" class="bg-gradient-to-r from-rose-600 to-rose-400 h-full transition-all duration-300" style="width: 100%"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1.5 text-[11px] text-slate-400 pt-1">
+                        <div>Korosi Rebar: <span class="text-slate-200 font-mono" id="conv-corrosion-txt">0.0%</span></div>
+                        <div>Status Keretakan: <span class="text-rose-400 font-semibold" id="conv-crack-txt">Normal</span></div>
+                        <div>Kedalaman Retak: <span class="text-slate-200 font-mono" id="conv-crack-depth">0.0 mm</span></div>
+                        <div>Kehilangan Massa: <span class="text-rose-400 font-mono font-bold" id="conv-spall-loss">0.0 kg/m³</span></div>
+                    </div>
+                </div>
+
+                <!-- ECO SHIELD Stats -->
+                <div class="bg-slate-900/60 rounded-xl p-3 border border-slate-800 space-y-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-300 font-semibold flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400"></span> ECO SHIELD
+                        </span>
+                        <span class="text-emerald-400 font-mono font-bold" id="eco-health-txt">100.0%</span>
+                    </div>
+                    <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                        <div id="eco-health-bar" class="bg-gradient-to-r from-emerald-600 to-emerald-400 h-full transition-all duration-300" style="width: 100%"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1.5 text-[11px] text-slate-400 pt-1">
+                        <div>Korosi Rebar: <span class="text-slate-200 font-mono" id="eco-corrosion-txt">0.0%</span></div>
+                        <div>Status Keretakan: <span class="text-emerald-400 font-semibold" id="eco-crack-txt">Bebas Retak</span></div>
+                        <div>Kedalaman Retak: <span class="text-slate-200 font-mono" id="eco-crack-depth">0.0 mm</span></div>
+                        <div>Kehilangan Massa: <span class="text-emerald-400 font-mono font-bold" id="eco-spall-loss">0.0 kg/m³</span></div>
+                    </div>
+                </div>
+
+                <div class="text-[10px] text-slate-300 italic bg-slate-950/60 p-2.5 rounded-lg border border-sky-900/60 leading-relaxed">
+                    <strong class="text-sky-300 not-italic">Catatan ilmiah:</strong> perubahan bentuk dan angka merupakan model visual konseptual, bukan prediksi umur beton atau hasil uji laboratorium. ECO-SHIELD juga dapat mengalami retak dan pengikisan.
+                </div>
+            </div>
+
+            <!-- Bottom Center: Timeline Scrubber & Controller -->
+            <div class="lg:col-span-6 glass-panel rounded-2xl p-4 flex flex-col justify-between gap-3">
+                
+                <!-- Main Controls Top Bar -->
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <div class="flex items-center gap-2">
+                        <button id="btn-play" class="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-lg transition duration-200">
+                            <i class="fa-solid fa-play" id="play-icon"></i>
+                            <span id="play-btn-txt">MULAI SIMULASI</span>
+                        </button>
+                        <button id="btn-reset" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-3 py-2 rounded-xl text-xs transition duration-200 border border-slate-700">
+                            <i class="fa-solid fa-rotate-left"></i> Reset
+                        </button>
+                    </div>
+
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <button id="btn-highlight-cracks" class="bg-slate-800/90 hover:bg-slate-700 text-yellow-400 font-semibold px-3 py-2 rounded-xl text-xs transition border border-yellow-500/40 flex items-center gap-1.5">
+                            <i class="fa-solid fa-fire-flame-curved"></i> Peta Retak
+                        </button>
+                        <button id="btn-cutaway" class="bg-slate-800/90 hover:bg-slate-700 text-amber-300 font-semibold px-3 py-2 rounded-xl text-xs transition border border-amber-500/40 flex items-center gap-1.5">
+                            <i class="fa-solid fa-eye"></i> Cutaway
+                        </button>
+                        <span class="text-cyan-200 text-[11px] px-2 py-1 rounded-lg bg-cyan-950/60 border border-cyan-500/30" title="Partikel biru adalah ilustrasi konseptual, bukan hasil perhitungan difusi.">● Ion klorida (ilustrasi)</span>
+                        <button id="btn-rain" class="bg-slate-800/90 hover:bg-slate-700 text-blue-300 font-semibold px-3 py-2 rounded-xl text-xs transition border border-blue-500/40 flex items-center gap-1.5">
+                            <i class="fa-solid fa-cloud-showers-heavy"></i> Hujan
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Timeline Milestones Bar -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-[11px] text-slate-300 font-semibold px-1">
+                        <span>Progres Visualisasi Kerusakan & Korosi</span>
+                        <span id="timeline-progress-label" class="text-amber-400 font-mono font-bold">Progres simulasi: 0%</span>
+                    </div>
+
+                    <input type="range" id="timeline-slider" min="0" max="1000" value="0" step="1" 
+                           class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500">
+
+                    <!-- Milestone Badges -->
+                    <div class="flex justify-between text-[10px] text-slate-400 font-mono px-0.5">
+                    <button class="milestone-btn hover:text-amber-400 transition" data-day="0">Awal</button>
+                    <button class="milestone-btn hover:text-amber-400 transition" data-day="100">10%</button>
+                    <button class="milestone-btn hover:text-amber-400 transition" data-day="250">25%</button>
+                    <button class="milestone-btn hover:text-amber-400 transition" data-day="500">50%</button>
+                    <button class="milestone-btn hover:text-amber-400 transition" data-day="750">75%</button>
+                    <button class="milestone-btn hover:text-amber-400 transition" data-day="1000">100%</button>
+                    </div>
+                    <div class="mt-3 rounded-lg border border-slate-700/70 bg-slate-950/60 p-2.5">
+                        <div class="flex items-center justify-between gap-2 text-[11px] mb-1.5">
+                            <label for="sim-speed-slider" class="text-slate-300 font-semibold">Kecepatan animasi</label>
+                            <span id="sim-speed-label" class="text-amber-300 font-mono">0,8 hari/detik</span>
+                        </div>
+                        <input type="range" id="sim-speed-slider" min="0.2" max="2" value="0.8" step="0.1" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500">
+                        <div class="flex justify-between text-[9px] text-slate-500 mt-1"><span>Pelan</span><span>Cepat</span></div>
+                        <p class="text-[10px] text-slate-400 mt-1">Tempo ini hanya mengatur animasi. 1 hari simulasi bukan 1 hari pengujian nyata.</p>
+                    </div>
+                </div>
+
+                <!-- Shortcuts Hints Bar -->
+                <div class="flex items-center justify-between text-[10px] text-slate-400 border-t border-slate-800/80 pt-2 px-1">
+                    <span><kbd class="px-1.5 py-0.5 bg-slate-800 rounded text-slate-300 font-mono">WASD / Mouse</kbd> Navigasi</span>
+                    <span><kbd class="px-1.5 py-0.5 bg-slate-800 rounded text-slate-300 font-mono">1</kbd> Beton Konvensional</span>
+                    <span><kbd class="px-1.5 py-0.5 bg-slate-800 rounded text-slate-300 font-mono">2</kbd> ECO SHIELD</span>
+                    <span><kbd class="px-1.5 py-0.5 bg-slate-800 rounded text-slate-300 font-mono">Space</kbd> Play/Pause</span>
+                    <span><kbd class="px-1.5 py-0.5 bg-slate-800 rounded text-slate-300 font-mono">R</kbd> Reset</span>
+                </div>
+            </div>
+
+            <!-- Right Panel: Editable Research Parameters -->
+            <div class="lg:col-span-3 glass-panel rounded-2xl p-4 flex flex-col gap-3">
+                <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
+                    <h3 class="text-sm font-bold gold-gradient-text uppercase font-cinzel tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-sliders"></i> Parameter Riset
+                    </h3>
+                </div>
+
+                <!-- Parameter Inputs Form -->
+                <div class="space-y-2.5 text-xs">
+                    <div>
+                        <div class="flex justify-between text-slate-300 mb-1">
+                            <span>Kadar Garam (Salinitas):</span>
+                            <span class="text-amber-400 font-mono font-bold" id="val-salinity">35 ppt</span>
+                        </div>
+                        <input type="range" id="param-salinity" min="10" max="60" value="35" class="w-full h-1.5 bg-slate-800 rounded appearance-none accent-amber-500">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-slate-300 mb-1">
+                            <span>Penetrasi Klorida:</span>
+                            <span class="text-amber-400 font-mono font-bold" id="val-chloride">Tinggi</span>
+                        </div>
+                        <input type="range" id="param-chloride" min="1" max="5" value="4" class="w-full h-1.5 bg-slate-800 rounded appearance-none accent-amber-500">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-slate-300 mb-1">
+                            <span>Suhu Lingkungan (°C):</span>
+                            <span class="text-amber-400 font-mono font-bold" id="val-temp">28.5 °C</span>
+                        </div>
+                        <input type="range" id="param-temp" min="15" max="45" value="28.5" step="0.5" class="w-full h-1.5 bg-slate-800 rounded appearance-none accent-amber-500">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-slate-300 mb-1">
+                            <span>Kelembaban Udara (RH):</span>
+                            <span class="text-amber-400 font-mono font-bold" id="val-humidity">80%</span>
+                        </div>
+                        <input type="range" id="param-humidity" min="40" max="100" value="80" class="w-full h-1.5 bg-slate-800 rounded appearance-none accent-amber-500">
+                    </div>
+                </div>
+
+                <div class="mt-1 pt-2 border-t border-slate-800 text-[11px] flex justify-between items-center text-slate-400">
+                    <span>Mekanisme Anti-Spall:</span>
+                    <span class="text-emerald-400 font-semibold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">Geopolymer Matrix</span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Opening Screen Overlay -->
+    <div id="opening-overlay" class="absolute inset-0 z-50 bg-slate-950/90 flex flex-col items-center justify-center text-center p-6 transition-opacity duration-1000">
+        <div class="max-w-xl glass-panel p-8 rounded-3xl border border-amber-500/40 shadow-2xl relative overflow-hidden">
+            <div class="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-tr from-amber-600 via-yellow-500 to-amber-300 flex items-center justify-center text-slate-950 text-4xl shadow-xl gold-glow">
+                <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            
+            <h1 class="text-2xl md:text-3xl font-extrabold font-cinzel gold-gradient-text uppercase tracking-widest mb-2">
+                ECO SHIELD
+            </h1>
+            <p class="text-xs md:text-sm text-slate-300 font-light mb-6">
+                Simulasi Interactive 3D Kerusakan & Korosi Beton Pantai.<br>
+                Bandingkan visual respons beton konvensional dan ECO-SHIELD pada progres simulasi. Hasil ini bukan prediksi umur layanan.
+            </p>
+
+            <button id="btn-start-cinematic" class="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-bold tracking-wider text-sm uppercase shadow-xl transition transform hover:scale-[1.02] flex items-center justify-center gap-3">
+                <i class="fa-solid fa-clapperboard"></i> Mulai Simulasi Sinematik
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const state = {
+            isPlaying: false,
+            currentDay: 0,
+            maxDays: 1000,
+            simSpeed: 0.8, // kecepatan standar: 0,8 hari simulasi per detik; bukan waktu nyata material
+            isCutaway: false,
+            isCinematic: false,
+            isRain: false,
+            highlightCracks: false,
+            selectedFocus: 'all',
+            
+            // Research parameters
+            salinity: 35,
+            chlorideRate: 4,
+            temp: 28.5,
+            humidity: 80,
+            
+            // Material Metrics
+            convHealth: 100,
+            convCorrosion: 0,
+            convCrackDepth: 0,
+            convSpallLoss: 0,
+            
+            ecoHealth: 100,
+            ecoCorrosion: 0,
+            ecoCrackDepth: 0,
+            ecoSpallLoss: 0
+        };
+
+        const dom = {
+            playBtn: document.getElementById('btn-play'),
+            playIcon: document.getElementById('play-icon'),
+            playBtnTxt: document.getElementById('play-btn-txt'),
+            resetBtn: document.getElementById('btn-reset'),
+            slider: document.getElementById('timeline-slider'),
+            progressLabel: document.getElementById('timeline-progress-label'),
+            dayBadge: document.getElementById('sim-day-badge'),
+            speedSlider: document.getElementById('sim-speed-slider'),
+            speedLabel: document.getElementById('sim-speed-label'),
+            
+            convHealthTxt: document.getElementById('conv-health-txt'),
+            convHealthBar: document.getElementById('conv-health-bar'),
+            convCorrosionTxt: document.getElementById('conv-corrosion-txt'),
+            convCrackTxt: document.getElementById('conv-crack-txt'),
+            convCrackDepth: document.getElementById('conv-crack-depth'),
+            convSpallLoss: document.getElementById('conv-spall-loss'),
+            convCardBox: document.getElementById('conv-card-box'),
+            convStatusBadge: document.getElementById('conv-status-badge'),
+            
+            ecoHealthTxt: document.getElementById('eco-health-txt'),
+            ecoHealthBar: document.getElementById('eco-health-bar'),
+            ecoCorrosionTxt: document.getElementById('eco-corrosion-txt'),
+            ecoCrackTxt: document.getElementById('eco-crack-txt'),
+            ecoCrackDepth: document.getElementById('eco-crack-depth'),
+            ecoSpallLoss: document.getElementById('eco-spall-loss'),
+            
+            highlightCracksBtn: document.getElementById('btn-highlight-cracks'),
+            cutawayBtn: document.getElementById('btn-cutaway'),
+            rainBtn: document.getElementById('btn-rain'),
+            startCinematicBtn: document.getElementById('btn-start-cinematic'),
+            openingOverlay: document.getElementById('opening-overlay'),
+            
+            salinitySlider: document.getElementById('param-salinity'),
+            salinityVal: document.getElementById('val-salinity'),
+            tempSlider: document.getElementById('param-temp'),
+            tempVal: document.getElementById('val-temp'),
+            humiditySlider: document.getElementById('param-humidity'),
+            humidityVal: document.getElementById('val-humidity'),
+            chlorideSlider: document.getElementById('param-chloride'),
+            chlorideVal: document.getElementById('val-chloride'),
+            
+            envTimeLabel: document.getElementById('env-time-label'),
+            envTimeIcon: document.getElementById('time-icon'),
+            envRainStatus: document.getElementById('env-rain-status'),
+            envTempDisplay: document.getElementById('env-temp-display'),
+            envSalinityDisplay: document.getElementById('env-salinity-display')
+        };
+
+        let scene, camera, renderer, controls;
+        let clock = new THREE.Clock();
+
+        let sunLight, ambientLight, skyMesh, oceanMesh, sunVisual, sunHalo, cloudGroup;
+        let convPillarGroup, ecoPillarGroup;
+        let convOuterConcrete, convInnerRebar, convDebrisDustParticles;
+        let ecoOuterConcrete, ecoInnerRebar;
+        let megaWaveMesh, splashParticles, rainParticles, dolphinsGroup, shootingStarsMesh;
+        let chloridePointsConv, chloridePointsEco, chloridePositionsConv, chloridePositionsEco;
+
+        let convMaterial, ecoMaterial, rebarMaterialConv, rebarMaterialEco;
+        let convTextureCanvas, convTextureCtx, convTexture;
+        let convFallenChunks = [];
+        let origConvPositions = null, origEcoPositions = null;
+        let ecoTexture = null;
+
+        // Web Audio Synthesizer for Crumbling Sound Effects
+        let audioCtx = null;
+        function playCrumbleAudio() {
+            try {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+
+                const bufferSize = audioCtx.sampleRate * 0.4;
+                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const output = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    output[i] = Math.random() * 2 - 1;
+                }
+
+                const whiteNoise = audioCtx.createBufferSource();
+                whiteNoise.buffer = buffer;
+
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(300, audioCtx.currentTime);
+
+                const gain = audioCtx.createGain();
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+
+                whiteNoise.connect(filter);
+                filter.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                whiteNoise.start();
+            } catch (e) { console.log(e); }
+        }
+
+        function initThree() {
+            const container = document.getElementById('canvas-container');
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a1628);
+            scene.fog = new THREE.FogExp2(0x24435b, 0.0035);
+
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 12, 38);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.22;
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxPolarAngle = Math.PI / 2 - 0.02;
+            controls.minDistance = 5;
+            controls.maxDistance = 120;
+            controls.target.set(0, 4, 0);
+
+            sunLight = new THREE.DirectionalLight(0xfff5ea, 2.5);
+            sunLight.position.set(50, 40, 30);
+            sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 2048;
+            sunLight.shadow.mapSize.height = 2048;
+            sunLight.shadow.camera.near = 10;
+            sunLight.shadow.camera.far = 150;
+            const d = 35;
+            sunLight.shadow.camera.left = -d;
+            sunLight.shadow.camera.right = d;
+            sunLight.shadow.camera.top = d;
+            sunLight.shadow.camera.bottom = -d;
+            scene.add(sunLight);
+
+            ambientLight = new THREE.AmbientLight(0x385380, 0.85);
+            scene.add(ambientLight);
+
+            const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x081620, 0.6);
+            scene.add(hemiLight);
+
+            createSkyDome();
+            createSunAndClouds();
+            createTerrain();
+            createOcean();
+            createPillars();
+            createChlorideVisualization();
+            createMegaWave();
+            createRain();
+            createDolphins();
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function createSkyDome() {
+            const skyGeo = new THREE.SphereGeometry(400, 32, 15);
+            const skyMat = new THREE.MeshBasicMaterial({ color: 0x6ba4e8, side: THREE.BackSide });
+            skyMesh = new THREE.Mesh(skyGeo, skyMat);
+            scene.add(skyMesh);
+
+            const starsGeo = new THREE.BufferGeometry();
+            const count = 300;
+            const pos = new Float32Array(count * 3);
+            for(let i=0; i<count*3; i+=3) {
+                pos[i] = (Math.random() - 0.5) * 600;
+                pos[i+1] = Math.random() * 200 + 50;
+                pos[i+2] = (Math.random() - 0.5) * 600;
+            }
+            starsGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            const starsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 1.5, transparent: true, opacity: 0 });
+            shootingStarsMesh = new THREE.Points(starsGeo, starsMat);
+            scene.add(shootingStarsMesh);
+        }
+
+        function createSunAndClouds() {
+            // Matahari visual di langit, terpisah dari lampu pencahayaan.
+            const sunGeo = new THREE.SphereGeometry(4.2, 24, 24);
+            const sunMat = new THREE.MeshBasicMaterial({ color: 0xffd27a });
+            sunVisual = new THREE.Mesh(sunGeo, sunMat);
+            sunVisual.position.set(42, 34, -95);
+            scene.add(sunVisual);
+
+            // Lingkaran halo lembut agar matahari terlihat jelas tanpa efek berkedip.
+            const haloMat = new THREE.SpriteMaterial({
+                map: createGlowTexture(), color: 0xffc56e, transparent: true,
+                opacity: 0.42, blending: THREE.AdditiveBlending, depthWrite: false
+            });
+            sunHalo = new THREE.Sprite(haloMat);
+            sunHalo.position.copy(sunVisual.position);
+            sunHalo.scale.set(24, 24, 1);
+            scene.add(sunHalo);
+
+            cloudGroup = new THREE.Group();
+            const cloudMat = new THREE.MeshStandardMaterial({
+                color: 0xf3f6f8, roughness: 1, transparent: true, opacity: 0.88
+            });
+            const cloudSpecs = [
+                [-42, 29, -65, 1.0], [-15, 35, -90, 1.25], [14, 30, -78, 0.9],
+                [48, 38, -60, 1.1], [68, 27, -88, 0.85], [-65, 38, -95, 0.9]
+            ];
+            cloudSpecs.forEach(([x, y, z, scale]) => {
+                const puff = new THREE.Group();
+                const parts = [[0,0,0,5.5],[4,1.1,0,4.2],[-4,0.5,0,4.0],[1.8,2.1,0,3.7],[-1.8,1.6,1.1,3.5]];
+                parts.forEach(([px,py,pz,r]) => {
+                    const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), cloudMat);
+                    mesh.position.set(px, py, pz);
+                    mesh.scale.set(1.35, 0.62, 0.8);
+                    puff.add(mesh);
+                });
+                puff.position.set(x, y, z);
+                puff.scale.setScalar(scale);
+                cloudGroup.add(puff);
+            });
+            scene.add(cloudGroup);
+        }
+
+        function createGlowTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            const gradient = ctx.createRadialGradient(64,64,4,64,64,62);
+            gradient.addColorStop(0, 'rgba(255,239,190,0.9)');
+            gradient.addColorStop(0.35, 'rgba(255,195,100,0.35)');
+            gradient.addColorStop(1, 'rgba(255,170,70,0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0,0,128,128);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createTerrain() {
+            const sandGeo = new THREE.PlaneGeometry(300, 300, 64, 64);
+            sandGeo.rotateX(-Math.PI / 2);
+            
+            const pos = sandGeo.attributes.position;
+            for(let i=0; i<pos.count; i++) {
+                const x = pos.getX(i);
+                const z = pos.getZ(i);
+                const y = Math.sin(x * 0.05) * Math.cos(z * 0.05) * 0.8 - (z * 0.03);
+                pos.setY(i, y - 2);
+            }
+            sandGeo.computeVertexNormals();
+
+            const sandMat = new THREE.MeshStandardMaterial({ color: 0xc2a675, roughness: 0.9, metalness: 0.1 });
+            const sandMesh = new THREE.Mesh(sandGeo, sandMat);
+            sandMesh.receiveShadow = true;
+            scene.add(sandMesh);
+        }
+
+        function createOcean() {
+            const oceanGeo = new THREE.PlaneGeometry(300, 300, 128, 128);
+            oceanGeo.rotateX(-Math.PI / 2);
+
+            const oceanMat = new THREE.MeshStandardMaterial({
+                color: 0x087f9f, roughness: 0.24, metalness: 0.28, transparent: true, opacity: 0.91
+            });
+
+            oceanMesh = new THREE.Mesh(oceanGeo, oceanMat);
+            oceanMesh.position.y = 0.5;
+            scene.add(oceanMesh);
+        }
+
+        function initDynamicConvTexture() {
+            convTextureCanvas = document.createElement('canvas');
+            convTextureCanvas.width = 1024;
+            convTextureCanvas.height = 1024;
+            convTextureCtx = convTextureCanvas.getContext('2d');
+
+            convTexture = new THREE.CanvasTexture(convTextureCanvas);
+            convTexture.wrapS = THREE.RepeatWrapping;
+            convTexture.wrapT = THREE.RepeatWrapping;
+            return convTexture;
+        }
+
+        function drawBranchingCrack(ctx, x, y, length, angle, depth, maxDepth, crackWidth, isHighlight) {
+            if (depth > maxDepth || length < 4) return;
+
+            const endX = x + Math.cos(angle) * length;
+            const endY = y + Math.sin(angle) * length;
+
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            
+            const midX = (x + endX) / 2 + (Math.random() - 0.5) * length * 0.35;
+            const midY = (y + endY) / 2 + (Math.random() - 0.5) * length * 0.35;
+            
+            ctx.quadraticCurveTo(midX, midY, endX, endY);
+
+            if (isHighlight) {
+                ctx.strokeStyle = '#facc15';
+                ctx.lineWidth = Math.max(2, crackWidth * 2.5);
+                ctx.shadowColor = '#ef4444';
+                ctx.shadowBlur = 12;
+            } else {
+                ctx.strokeStyle = '#080808';
+                ctx.lineWidth = crackWidth;
+                ctx.shadowBlur = 0;
+            }
+
+            ctx.lineCap = 'round';
+            ctx.stroke();
+
+            const branches = Math.floor(Math.random() * 2) + 1;
+            for (let b = 0; b < branches; b++) {
+                const newAngle = angle + (Math.random() - 0.5) * 1.2;
+                const newLength = length * (0.5 + Math.random() * 0.35);
+                drawBranchingCrack(ctx, endX, endY, newLength, newAngle, depth + 1, maxDepth, crackWidth * 0.7, isHighlight);
+            }
+        }
+
+        let lastConvTextureStep = -1;
+        let lastEcoTextureStep = -1;
+        function renderConvTexture(corrosionFactor, highlightMode) {
+            // Gambar ulang hanya saat perubahan visual cukup besar; mencegah pekerjaan 1024x1024 setiap frame.
+            const textureStep = Math.round(corrosionFactor * 40) + (highlightMode ? 1000 : 0);
+            if (textureStep === lastConvTextureStep) return;
+            lastConvTextureStep = textureStep;
+            const ctx = convTextureCtx;
+            ctx.clearRect(0, 0, 1024, 1024);
+
+            const baseGray = Math.floor(180 - corrosionFactor * 90);
+            ctx.fillStyle = `rgb(${baseGray},${baseGray - Math.floor(corrosionFactor * 40)},${baseGray - Math.floor(corrosionFactor * 50)})`;
+            ctx.fillRect(0, 0, 1024, 1024);
+
+            for (let i = 0; i < 400; i++) {
+                ctx.fillStyle = Math.random() > 0.5 ? 'rgba(30,30,30,0.15)' : 'rgba(230,230,230,0.15)';
+                ctx.beginPath();
+                ctx.arc(Math.random() * 1024, Math.random() * 1024, Math.random() * 3 + 1, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            if (corrosionFactor > 0.08) {
+                const rustGradients = [
+                    { x: 300, y: 400, r: 220 },
+                    { x: 700, y: 650, r: 280 },
+                    { x: 450, y: 800, r: 240 }
+                ];
+
+                rustGradients.forEach(rg => {
+                    const grad = ctx.createRadialGradient(rg.x, rg.y, 10, rg.x, rg.y + 140 * corrosionFactor, rg.r * corrosionFactor);
+                    grad.addColorStop(0, `rgba(139, 42, 12, ${0.85 * corrosionFactor})`);
+                    grad.addColorStop(0.5, `rgba(180, 83, 9, ${0.5 * corrosionFactor})`);
+                    grad.addColorStop(1, 'transparent');
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(0, 0, 1024, 1024);
+                });
+            }
+
+            if (corrosionFactor > 0.03) {
+                ctx.lineWidth = 1.2;
+                for (let i = 0; i < Math.floor(corrosionFactor * 30); i++) {
+                    const x = (i * 137) % 1024;
+                    const y = (i * 243) % 1024;
+                    drawBranchingCrack(ctx, x, y, 25, Math.random() * Math.PI * 2, 1, 2, 1.5, highlightMode);
+                }
+            }
+
+            if (corrosionFactor > 0.25) {
+                const rootCracks = [
+                    { x: 280, y: 300, angle: 1.2, len: 140 },
+                    { x: 720, y: 550, angle: 2.1, len: 160 },
+                    { x: 450, y: 750, angle: 0.4, len: 130 }
+                ];
+
+                rootCracks.forEach(c => {
+                    drawBranchingCrack(ctx, c.x, c.y, c.len * (corrosionFactor * 1.2), c.angle, 1, 4, 4.0 * corrosionFactor, highlightMode);
+                });
+            }
+
+            if (corrosionFactor > 0.6) {
+                const macroCracks = [
+                    { x: 300, y: 100, angle: 1.57, len: 850 },
+                    { x: 700, y: 150, angle: 1.50, len: 800 }
+                ];
+
+                macroCracks.forEach(mc => {
+                    drawBranchingCrack(ctx, mc.x, mc.y, mc.len, mc.angle, 1, 5, 10.0 * corrosionFactor, highlightMode);
+                });
+            }
+
+            convTexture.needsUpdate = true;
+        }
+
+        function renderEcoTexture(corrosionFactor, highlightMode) {
+            if (!ecoTexture || !ecoTexture.image) return;
+            const textureStep = Math.round(corrosionFactor * 40) + (highlightMode ? 1000 : 0);
+            if (textureStep === lastEcoTextureStep) return;
+            lastEcoTextureStep = textureStep;
+            const canvas = ecoTexture.image;
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width, h = canvas.height;
+            ctx.clearRect(0, 0, w, h);
+            ctx.fillStyle = '#8fa3b0';
+            ctx.fillRect(0, 0, w, h);
+            // Tekstur agregat/pori yang stabil supaya permukaan tidak tampak plastik.
+            for (let i = 0; i < 950; i++) {
+                const x = (i * 73) % w;
+                const y = (i * 139) % h;
+                const shade = 95 + ((i * 37) % 75);
+                ctx.fillStyle = `rgba(${shade},${shade + 8},${shade + 12},0.18)`;
+                ctx.fillRect(x, y, 1 + (i % 3), 1 + (i % 2));
+            }
+            // Korosi/retak dibuat bertahap; ini visual konseptual, bukan pemetaan hasil uji.
+            if (corrosionFactor > 0.015) {
+                const crackCount = Math.floor(2 + corrosionFactor * 18);
+                for (let i = 0; i < crackCount; i++) {
+                    const x = 65 + ((i * 97) % 390);
+                    const y = 45 + ((i * 131) % 420);
+                    const len = 18 + corrosionFactor * 150 + (i % 4) * 7;
+                    ctx.beginPath();
+                    ctx.moveTo(x, y);
+                    ctx.lineTo(x + Math.sin(i * 2.2) * 8, y + len * 0.38);
+                    ctx.lineTo(x + Math.cos(i * 1.7) * 17, y + len * 0.72);
+                    ctx.lineTo(x + Math.sin(i * 1.3) * 25, Math.min(h - 3, y + len));
+                    ctx.strokeStyle = highlightMode ? 'rgba(250,204,21,0.95)' : `rgba(38,35,32,${0.18 + corrosionFactor * 0.72})`;
+                    ctx.lineWidth = highlightMode ? 3 : 0.6 + corrosionFactor * 2.2;
+                    ctx.stroke();
+                }
+            }
+            if (corrosionFactor > 0.22) {
+                for (let i = 0; i < 5; i++) {
+                    const x = 40 + i * 95;
+                    const y = 300 + (i % 2) * 70;
+                    const r = 8 + corrosionFactor * 30;
+                    const g = ctx.createRadialGradient(x, y, 1, x, y, r);
+                    g.addColorStop(0, `rgba(125,72,43,${corrosionFactor * 0.48})`);
+                    g.addColorStop(1, 'rgba(125,72,43,0)');
+                    ctx.fillStyle = g;
+                    ctx.fillRect(x-r, y-r, r*2, r*2);
+                }
+            }
+            ecoTexture.needsUpdate = true;
+        }
+
+        function createEcoTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = '#8fa3b0';
+            ctx.fillRect(0, 0, 512, 512);
+
+            const imgData = ctx.getImageData(0, 0, 512, 512);
+            const data = imgData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                const noise = (Math.random() - 0.5) * 12;
+                data[i]     = Math.min(255, Math.max(0, data[i] + noise));
+                data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + noise));
+                data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + noise));
+            }
+            ctx.putImageData(imgData, 0, 0);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(1, 3);
+            return texture;
+        }
+
+        // Visualisasi konseptual ion klorida. Posisi partikel deterministik dan bukan hasil solver difusi.
+        function createChlorideVisualization() {
+            const count = 90;
+            const makeCloud = (centerX, color) => {
+                const positions = new Float32Array(count * 3);
+                for (let i = 0; i < count; i++) {
+                    const a = i * 2.399963229728653;
+                    const r = 2.35 + (i % 9) * 0.14;
+                    positions[i * 3] = centerX + Math.cos(a) * r;
+                    positions[i * 3 + 1] = -1.2 + ((i * 17) % 120) / 10;
+                    positions[i * 3 + 2] = -2.4 + ((i * 13) % 48) / 10;
+                }
+                const geo = new THREE.BufferGeometry();
+                geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                const mat = new THREE.PointsMaterial({ color, size: 0.16, transparent: true, opacity: 0.78, sizeAttenuation: true, depthWrite: false });
+                const points = new THREE.Points(geo, mat);
+                points.userData.basePositions = positions.slice();
+                scene.add(points);
+                return points;
+            };
+            chloridePointsConv = makeCloud(-8, 0x69d9ff);
+            chloridePositionsConv = chloridePointsConv.geometry.attributes.position;
+            chloridePointsEco = makeCloud(8, 0x69d9ff);
+            chloridePositionsEco = chloridePointsEco.geometry.attributes.position;
+        }
+
+        function updateChlorideVisualization(elapsedTime = 0) {
+            const progress = state.currentDay / state.maxDays;
+            const severity = Math.min(1.5, (state.salinity / 35) * (state.chlorideRate / 3) * (0.7 + state.humidity / 100));
+            [[chloridePointsConv, chloridePositionsConv, 1.0], [chloridePointsEco, chloridePositionsEco, 0.72]].forEach(([points, attr, materialFactor]) => {
+                if (!points || !attr) return;
+                const base = points.userData.basePositions;
+                for (let i = 0; i < attr.count; i++) {
+                    const j = i * 3;
+                    const bx = base[j], by = base[j + 1], bz = base[j + 2];
+                    // Partikel bergerak perlahan ke arah permukaan dan masuk sedikit seiring progres.
+                    const drift = progress * severity * materialFactor * 1.35;
+                    attr.array[j] = bx + Math.sin(elapsedTime * 0.7 + i * 1.7) * 0.12 - Math.sign(bx - (points === chloridePointsConv ? -8 : 8)) * drift;
+                    attr.array[j + 1] = by + Math.sin(elapsedTime * 0.8 + i) * 0.09;
+                    attr.array[j + 2] = bz + Math.cos(elapsedTime * 0.55 + i * 0.9) * 0.12;
+                }
+                attr.needsUpdate = true;
+                points.material.opacity = 0.35 + 0.5 * Math.min(1, severity / 1.5);
+            });
+        }
+
+        function createPillars() {
+            const dynamicConvTex = initDynamicConvTexture();
+            const ecoTex = createEcoTexture();
+
+            // High resolution box geometry for vertex displacement destruction
+            const pillarGeo = new THREE.CylinderGeometry(2, 2, 14, 40, 64, false);
+
+            // Store original vertex position buffer for procedural deformation
+            origConvPositions = pillarGeo.attributes.position.clone();
+
+            convMaterial = new THREE.MeshStandardMaterial({
+                map: dynamicConvTex,
+                roughness: 0.95,
+                metalness: 0.05
+            });
+
+            ecoTexture = ecoTex;
+            ecoMaterial = new THREE.MeshStandardMaterial({
+                map: ecoTex,
+                roughness: 0.65,
+                metalness: 0.1,
+                color: new THREE.Color(0x796b59)
+            });
+
+            rebarMaterialConv = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.5, metalness: 0.85 });
+            rebarMaterialEco = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.3, metalness: 0.9 });
+
+            // 1. CONVENTIONAL PILLAR GROUP
+            convPillarGroup = new THREE.Group();
+            convPillarGroup.position.set(-8, 5, 0);
+
+            convOuterConcrete = new THREE.Mesh(pillarGeo, convMaterial);
+            convOuterConcrete.castShadow = true;
+            convOuterConcrete.receiveShadow = true;
+            convPillarGroup.add(convOuterConcrete);
+
+            convInnerRebar = createRebarMesh(rebarMaterialConv);
+            convInnerRebar.visible = true; // Always partially visible when concrete crumbles
+            convPillarGroup.add(convInnerRebar);
+
+            // Spalling Broken Concrete Chunks (Fallen onto beach sand/water)
+            for (let i = 0; i < 35; i++) {
+                const chunkGeo = new THREE.DodecahedronGeometry(0.3 + Math.random() * 0.45, 0);
+                const chunkMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 0.95 });
+                const chunk = new THREE.Mesh(chunkGeo, chunkMat);
+
+                // Initial fallen positions scattered around pillar base
+                chunk.position.set(
+                    (Math.random() - 0.5) * 5.5,
+                    -6.5 + Math.random() * 0.3,
+                    (Math.random() - 0.5) * 5.5
+                );
+                chunk.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+                chunk.visible = false;
+                convFallenChunks.push(chunk);
+                convPillarGroup.add(chunk);
+            }
+
+            // Debris Dust & Water Splashes around Pillar Base
+            const dustGeo = new THREE.BufferGeometry();
+            const dCount = 120;
+            const dPos = new Float32Array(dCount * 3);
+            for(let i=0; i<dCount*3; i+=3) {
+                dPos[i] = (Math.random() - 0.5) * 6;
+                dPos[i+1] = -5 + Math.random() * 4;
+                dPos[i+2] = (Math.random() - 0.5) * 6;
+            }
+            dustGeo.setAttribute('position', new THREE.BufferAttribute(dPos, 3));
+            const dustMat = new THREE.PointsMaterial({ color: 0xc4a482, size: 0.35, transparent: true, opacity: 0 });
+            convDebrisDustParticles = new THREE.Points(dustGeo, dustMat);
+            convPillarGroup.add(convDebrisDustParticles);
+
+            scene.add(convPillarGroup);
+
+            // 2. ECO SHIELD PILLAR GROUP
+            ecoPillarGroup = new THREE.Group();
+            ecoPillarGroup.position.set(8, 5, 0);
+
+            const ecoPillarGeo = new THREE.CylinderGeometry(2, 2, 14, 40, 64, false);
+            origEcoPositions = ecoPillarGeo.attributes.position.clone();
+            ecoOuterConcrete = new THREE.Mesh(ecoPillarGeo, ecoMaterial);
+            ecoOuterConcrete.castShadow = true;
+            ecoOuterConcrete.receiveShadow = true;
+            ecoPillarGroup.add(ecoOuterConcrete);
+
+            ecoInnerRebar = createRebarMesh(rebarMaterialEco);
+            ecoInnerRebar.visible = false;
+            ecoPillarGroup.add(ecoInnerRebar);
+
+            scene.add(ecoPillarGroup);
+        }
+
+        function createRebarMesh(material) {
+            const group = new THREE.Group();
+            const barGeo = new THREE.CylinderGeometry(0.15, 0.15, 13.5, 12);
+            
+            const positions = [
+                [-1.6, -1.6], [1.6, -1.6], [-1.6, 1.6], [1.6, 1.6],
+                [0, -1.6], [0, 1.6], [-1.6, 0], [1.6, 0]
+            ];
+
+            positions.forEach(pos => {
+                const bar = new THREE.Mesh(barGeo, material);
+                bar.position.set(pos[0], 0, pos[1]);
+                group.add(bar);
+            });
+
+            for (let y = -6; y <= 6; y += 1.2) {
+                const ringGeo = new THREE.BoxGeometry(3.3, 0.12, 3.3);
+                const ring = new THREE.Mesh(ringGeo, material);
+                ring.position.y = y;
+                group.add(ring);
+            }
+
+            return group;
+        }
+
+        function createMegaWave() {
+            const waveGeo = new THREE.PlaneGeometry(120, 20, 32, 16);
+            waveGeo.rotateX(-Math.PI / 4);
+            const waveMat = new THREE.MeshStandardMaterial({
+                color: 0x0088aa, transparent: true, opacity: 0.8, roughness: 0.1
+            });
+            megaWaveMesh = new THREE.Mesh(waveGeo, waveMat);
+            megaWaveMesh.position.set(0, 4, 80);
+            megaWaveMesh.visible = false;
+            scene.add(megaWaveMesh);
+
+            const splashGeo = new THREE.BufferGeometry();
+            const pCount = 800;
+            const pPos = new Float32Array(pCount * 3);
+            for (let i = 0; i < pCount * 3; i++) {
+                pPos[i] = (Math.random() - 0.5) * 30;
+            }
+            splashGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+            const splashMat = new THREE.PointsMaterial({ color: 0xe0f7fa, size: 0.4, transparent: true, opacity: 0.8 });
+            splashParticles = new THREE.Points(splashGeo, splashMat);
+            splashParticles.position.set(0, 3, 0);
+            splashParticles.visible = false;
+            scene.add(splashParticles);
+        }
+
+        function createRain() {
+            const rainGeo = new THREE.BufferGeometry();
+            const rainCount = 1500;
+            const rainPos = new Float32Array(rainCount * 3);
+            for (let i = 0; i < rainCount * 3; i += 3) {
+                rainPos[i] = (Math.random() - 0.5) * 120;
+                rainPos[i + 1] = Math.random() * 60;
+                rainPos[i + 2] = (Math.random() - 0.5) * 120;
+            }
+            rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+            const rainMat = new THREE.PointsMaterial({ color: 0x90caf9, size: 0.25, transparent: true, opacity: 0.6 });
+            rainParticles = new THREE.Points(rainGeo, rainMat);
+            rainParticles.visible = false;
+            scene.add(rainParticles);
+        }
+
+        function createDolphins() {
+            dolphinsGroup = new THREE.Group();
+            const bodyGeo = new THREE.ConeGeometry(0.8, 3.5, 8);
+            bodyGeo.rotateX(Math.PI / 2);
+            const dolphinMat = new THREE.MeshStandardMaterial({ color: 0x37474f, roughness: 0.3 });
+            
+            const dolphin = new THREE.Mesh(bodyGeo, dolphinMat);
+            dolphinsGroup.add(dolphin);
+            dolphinsGroup.position.set(25, -2, -20);
+            scene.add(dolphinsGroup);
+        }
+
+        function updateCorrosionPhysics() {
+            const days = state.currentDay;
+            const progressRatio = days / state.maxDays;
+
+            const salinityMult = state.salinity / 35.0;
+            const tempMult = Math.pow(1.05, (state.temp - 25.0) / 5.0);
+            const chlorideMult = state.chlorideRate / 3.0;
+            const humidityMult = 0.75 + (state.humidity / 100) * 0.5;
+            const environmentalSeverity = salinityMult * tempMult * chlorideMult * humidityMult;
+
+            // --- 1. CONVENTIONAL CONCRETE SEVERE BREAKDOWN ALGORITHM ---
+            const convCorrosionProgress = Math.min(1.0, Math.pow(progressRatio, 1.15) * 1.15 * environmentalSeverity);
+            state.convCorrosion = convCorrosionProgress * 100.0;
+            
+            // Indikator kesehatan visual mengikuti progres model, bukan tahun layanan nyata.
+            state.convHealth = Math.max(8.5, 100.0 - Math.pow(convCorrosionProgress, 0.9) * 91.5);
+
+            // Spalling Weight Loss (Up to 480 kg/m³ lost concrete mass)
+            state.convSpallLoss = (convCorrosionProgress * 480.0);
+            state.convCrackDepth = convCorrosionProgress * 45.0; // Deep fractures up to 45mm
+
+            // Render Dynamic Procedural Texture with Cracks & Rust
+            renderConvTexture(convCorrosionProgress, state.highlightCracks);
+
+            // PROCEDURAL VERTEX DEFORMATION (CONCRETE BREAKDOWN & COLLAPSE EFFECT)
+            const posAttr = convOuterConcrete.geometry.attributes.position;
+            const count = posAttr.count;
+
+            for (let i = 0; i < count; i++) {
+                const origX = origConvPositions.getX(i);
+                const origY = origConvPositions.getY(i);
+                const origZ = origConvPositions.getZ(i);
+
+                // Concrete erodes most heavily in splash zone (-4 to +3 Y)
+                if (origY < 3.5 && convCorrosionProgress > 0.15) {
+                    const breakdownFactor = Math.pow(convCorrosionProgress, 1.8) * 1.4;
+                    const noise = Math.sin(origY * 2.5) * Math.cos(origX * 3.0) * breakdownFactor;
+
+                    // Shrink outer shell inward to expose rebar cages
+                    const shrinkX = origX * (1.0 - breakdownFactor * 0.42) + noise * 0.25;
+                    const shrinkZ = origZ * (1.0 - breakdownFactor * 0.42) + noise * 0.25;
+
+                    posAttr.setXYZ(i, shrinkX, origY, shrinkZ);
+                } else {
+                    posAttr.setXYZ(i, origX, origY, origZ);
+                }
+            }
+            posAttr.needsUpdate = true;
+            convOuterConcrete.geometry.computeVertexNormals();
+
+            // Rebar Rust Oxidation (Heavily rusted dark reddish brown & corroded shape)
+            if (convCorrosionProgress > 0.3) {
+                rebarMaterialConv.color.setHSL(0.04, 0.85, Math.max(0.12, 0.45 - convCorrosionProgress * 0.35));
+                
+                // Bend rebar slightly under severe failure
+                convInnerRebar.children.forEach((bar, idx) => {
+                    if (bar.geometry.type === 'CylinderGeometry') {
+                        bar.rotation.z = Math.sin(idx + days) * 0.05 * convCorrosionProgress;
+                    }
+                });
+            }
+
+            // Spalling Broken Concrete Chunks Activation
+            const activeChunks = Math.floor(convCorrosionProgress * convFallenChunks.length);
+            convFallenChunks.forEach((chunk, index) => {
+                if (index < activeChunks) {
+                    if (!chunk.visible && state.isPlaying) playCrumbleAudio();
+                    chunk.visible = true;
+                } else {
+                    chunk.visible = false;
+                }
+            });
+
+            // Dust & Splash Particles around collapsed base
+            if (convCorrosionProgress > 0.5) {
+                convDebrisDustParticles.material.opacity = Math.min(0.7, (convCorrosionProgress - 0.5) * 1.4);
+            } else {
+                convDebrisDustParticles.material.opacity = 0;
+            }
+
+            // --- 2. ECO-SHIELD: respons visual yang lebih lambat, tetapi tidak dianggap kebal.
+            // Koefisien di bawah adalah parameter ilustratif untuk animasi, bukan hasil uji material.
+            const ecoExposure = Math.min(1.35, environmentalSeverity);
+            const ecoCorrosionProgress = Math.min(0.72, Math.pow(progressRatio, 1.65) * 0.34 * ecoExposure);
+            state.ecoCorrosion = ecoCorrosionProgress * 100.0;
+            state.ecoHealth = Math.max(35, 100 - (ecoCorrosionProgress * 52) - (progressRatio * 7));
+            state.ecoCrackDepth = Math.max(0, Math.pow(progressRatio, 1.45) * 5.5 * Math.min(1.25, ecoExposure));
+            state.ecoSpallLoss = Math.max(0, Math.pow(progressRatio, 1.8) * 95 * Math.min(1.2, ecoExposure));
+
+            // Retak rambut dan pengikisan ringan pada ECO-SHIELD muncul bertahap.
+            renderEcoTexture(ecoCorrosionProgress, state.highlightCracks);
+            const ecoPos = ecoOuterConcrete.geometry.attributes.position;
+            const ecoDeform = Math.max(0, progressRatio - 0.28) * ecoCorrosionProgress * 0.55;
+            for (let i = 0; i < ecoPos.count; i++) {
+                const ox = origEcoPositions.getX(i);
+                const oy = origEcoPositions.getY(i);
+                const oz = origEcoPositions.getZ(i);
+                const splashWeight = (oy < 3.5 && oy > -6.8) ? 1 : 0.12;
+                const rough = Math.sin(ox * 5.2 + oy * 2.1) * Math.cos(oz * 4.7 - oy) * ecoDeform * splashWeight;
+                ecoPos.setXYZ(i, ox * (1 - ecoDeform * splashWeight * 0.13) + rough * 0.12, oy, oz * (1 - ecoDeform * splashWeight * 0.13) + rough * 0.12);
+            }
+            ecoPos.needsUpdate = true;
+            ecoOuterConcrete.geometry.computeVertexNormals();
+            ecoInnerRebar.visible = ecoCorrosionProgress > 0.48;
+            rebarMaterialEco.color.setHSL(0.075, 0.48 + ecoCorrosionProgress * 0.3, 0.42 - ecoCorrosionProgress * 0.18);
+
+            // Warna dasar menyesuaikan prototipe ECO-SHIELD: cokelat keabu-abuan.
+            const ecoR = 0.48 - (ecoCorrosionProgress * 0.12);
+            const ecoG = 0.40 - (ecoCorrosionProgress * 0.11);
+            const ecoB = 0.31 - (ecoCorrosionProgress * 0.08);
+            ecoMaterial.color.setRGB(ecoR, ecoG, ecoB);
+
+            // --- 3. UI DASHBOARD UPDATES ---
+            dom.convHealthTxt.innerText = `${state.convHealth.toFixed(1)}%`;
+            dom.convHealthBar.style.width = `${state.convHealth}%`;
+            dom.convCorrosionTxt.innerText = `${state.convCorrosion.toFixed(1)}%`;
+            dom.convCrackDepth.innerText = `${state.convCrackDepth.toFixed(1)} mm`;
+            dom.convSpallLoss.innerText = `${state.convSpallLoss.toFixed(1)} kg/m³`;
+
+            let crackStateTxt = "Awal simulasi";
+            if (progressRatio >= 0.10 && progressRatio < 0.25) crackStateTxt = "Indikasi retak (ilustrasi)";
+            else if (progressRatio >= 0.25 && progressRatio < 0.50) crackStateTxt = "Kerusakan permukaan (ilustrasi)";
+            else if (progressRatio >= 0.50 && progressRatio < 0.75) crackStateTxt = "Spalling / tulangan terekspos (ilustrasi)";
+            else if (progressRatio >= 0.75) crackStateTxt = "Kerusakan berat (ilustrasi)";
+            dom.convCrackTxt.innerText = crackStateTxt;
+
+            if (state.convHealth < 25.0) {
+                dom.convCardBox.classList.add('border-rose-500/50', 'bg-rose-950/20');
+                dom.convStatusBadge.innerText = "Kerusakan berat pada model simulasi";
+            } else {
+                dom.convCardBox.classList.remove('border-rose-500/50', 'bg-rose-950/20');
+                dom.convStatusBadge.innerText = "Indikator korosi pada model simulasi";
+            }
+
+            dom.ecoHealthTxt.innerText = `${state.ecoHealth.toFixed(1)}%`;
+            dom.ecoHealthBar.style.width = `${state.ecoHealth}%`;
+            dom.ecoCorrosionTxt.innerText = `${state.ecoCorrosion.toFixed(1)}%`;
+            dom.ecoCrackDepth.innerText = `${state.ecoCrackDepth.toFixed(1)} mm`;
+            dom.ecoSpallLoss.innerText = `${state.ecoSpallLoss.toFixed(1)} kg/m³`;
+            let ecoCrackState = "Awal simulasi";
+            if (progressRatio >= 0.12 && progressRatio < 0.35) ecoCrackState = "Perubahan ringan (ilustrasi)";
+            else if (progressRatio >= 0.35 && progressRatio < 0.65) ecoCrackState = "Retak halus (ilustrasi)";
+            else if (progressRatio >= 0.65) ecoCrackState = "Kerusakan permukaan (ilustrasi)";
+            dom.ecoCrackTxt.innerText = ecoCrackState;
+            dom.ecoCrackTxt.className = progressRatio > 0.65 ? "text-amber-300 font-semibold" : "text-emerald-300 font-semibold";
+
+            dom.slider.value = days;
+            const progressPercent = Math.round(progressRatio * 100);
+            dom.progressLabel.innerText = `Progres simulasi: ${progressPercent}%`;
+            dom.dayBadge.innerText = `PROGRES ${progressPercent}%`;
+        }
+
+        function animateEnvironment(elapsedTime) {
+            // Siklus siang/malam mengikuti waktu animasi nyata agar tidak berkedip mengikuti hari simulasi.
+            const visualCycle = (elapsedTime % 120) / 120;
+            const sunAngle = visualCycle * Math.PI * 2 - Math.PI / 2;
+            sunLight.position.x = Math.cos(sunAngle) * 80;
+            sunLight.position.y = Math.sin(sunAngle) * 55 + 15;
+            if (sunVisual) { sunVisual.position.x = Math.cos(sunAngle) * 48; sunVisual.position.y = Math.max(8, Math.sin(sunAngle) * 30 + 28); if (sunHalo) sunHalo.position.copy(sunVisual.position); }
+            if (cloudGroup) cloudGroup.position.x = Math.sin(elapsedTime * 0.012) * 4;
+            const isNight = Math.sin(sunAngle) < -0.28;
+
+            if (isNight) {
+                sunLight.intensity = 0.2;
+                ambientLight.intensity = 0.25;
+                skyMesh.material.color.setHex(0x030a16);
+                shootingStarsMesh.material.opacity = 0.8;
+                dom.envTimeLabel.innerText = "Malam (visual)";
+                dom.envTimeIcon.className = "fa-solid fa-moon text-indigo-300 text-sm";
+            } else {
+                sunLight.intensity = 2.5;
+                ambientLight.intensity = 0.85;
+                skyMesh.material.color.setHex(0x6ba4e8);
+                shootingStarsMesh.material.opacity = 0;
+                dom.envTimeLabel.innerText = "Siang (visual)";
+                dom.envTimeIcon.className = "fa-solid fa-sun text-amber-400 text-sm";
+            }
+
+            const pos = oceanMesh.geometry.attributes.position;
+            for (let i = 0; i < pos.count; i++) {
+                const u = pos.getX(i);
+                const v = pos.getZ(i);
+                const z = Math.sin(u * 0.2 + elapsedTime * 2) * 0.3 + Math.cos(v * 0.2 + elapsedTime * 1.5) * 0.3;
+                pos.setY(i, z);
+            }
+            oceanMesh.geometry.attributes.position.needsUpdate = true;
+
+            if (state.isRain && rainParticles.visible) {
+                const rPos = rainParticles.geometry.attributes.position;
+                for (let i = 1; i < rPos.count * 3; i += 3) {
+                    rPos.array[i] -= 1.5;
+                    if (rPos.array[i] < 0) rPos.array[i] = 60;
+                }
+                rainParticles.geometry.attributes.position.needsUpdate = true;
+            }
+
+            if (dolphinsGroup) {
+                const dolphinTime = elapsedTime * 0.8;
+                dolphinsGroup.position.x = Math.cos(dolphinTime) * 35;
+                dolphinsGroup.position.z = -20 + Math.sin(dolphinTime) * 15;
+                dolphinsGroup.position.y = Math.max(-2, Math.sin(dolphinTime * 2) * 4);
+                dolphinsGroup.rotation.z = Math.cos(dolphinTime * 2) * 0.5;
+            }
+        }
+
+        let cinematicAnimId = null;
+        function runCinematicOpening() {
+            state.isCinematic = true;
+            megaWaveMesh.visible = true;
+            splashParticles.visible = true;
+
+            let waveZ = 80;
+            const startTime = clock.getElapsedTime();
+
+            function cinematicStep() {
+                const elapsed = clock.getElapsedTime() - startTime;
+                
+                waveZ = 80 - elapsed * 30;
+                megaWaveMesh.position.z = waveZ;
+
+                camera.position.x = Math.sin(elapsed * 0.8) * 30;
+                camera.position.z = Math.cos(elapsed * 0.8) * 30 + 10;
+                camera.position.y = 8 + Math.sin(elapsed * 0.5) * 3;
+                camera.lookAt(0, 4, 0);
+
+                if (waveZ < 5 && waveZ > -10) {
+                    camera.position.x += (Math.random() - 0.5) * 0.8;
+                    camera.position.y += (Math.random() - 0.5) * 0.8;
+
+                    splashParticles.visible = true;
+                    const p = splashParticles.geometry.attributes.position;
+                    for(let i=0; i<p.count*3; i+=3) {
+                        p.array[i+1] += Math.random() * 0.5;
+                    }
+                    splashParticles.geometry.attributes.position.needsUpdate = true;
+                }
+
+                if (elapsed < 4.5) {
+                    cinematicAnimId = requestAnimationFrame(cinematicStep);
+                } else {
+                    megaWaveMesh.visible = false;
+                    splashParticles.visible = false;
+                    state.isCinematic = false;
+                    
+                    controls.target.set(0, 4, 0);
+                    camera.position.set(0, 12, 38);
+                    
+                    togglePlay(true);
+                }
+            }
+            cinematicStep();
+        }
+
+        function toggleCutawayMode(enable) {
+            state.isCutaway = enable !== undefined ? enable : !state.isCutaway;
+
+            if (state.isCutaway) {
+                convOuterConcrete.scale.set(0.5, 1, 1);
+                convOuterConcrete.position.x = -1;
+
+                ecoOuterConcrete.scale.set(0.5, 1, 1);
+                ecoOuterConcrete.position.x = -1;
+                ecoInnerRebar.visible = true;
+                convInnerRebar.visible = true;
+                chloridePointsConv.material.opacity = 0.9;
+                chloridePointsEco.material.opacity = 0.9;
+                dom.cutawayBtn.title = "Penampang ilustratif: beton dipersempit untuk memperlihatkan tulangan; bukan potongan CAD fisik.";
+
+                dom.cutawayBtn.classList.add('bg-amber-600', 'text-slate-950');
+            } else {
+                convOuterConcrete.scale.set(1, 1, 1);
+                convOuterConcrete.position.x = 0;
+
+                ecoOuterConcrete.scale.set(1, 1, 1);
+                ecoOuterConcrete.position.x = 0;
+                ecoInnerRebar.visible = false;
+                convInnerRebar.visible = true;
+                dom.cutawayBtn.title = "Tampilkan mode penampang ilustratif";
+
+                dom.cutawayBtn.classList.remove('bg-amber-600', 'text-slate-950');
+            }
+        }
+
+        function toggleHighlightCracks() {
+            state.highlightCracks = !state.highlightCracks;
+            if (state.highlightCracks) {
+                dom.highlightCracksBtn.classList.add('bg-yellow-500', 'text-slate-950');
+            } else {
+                dom.highlightCracksBtn.classList.remove('bg-yellow-500', 'text-slate-950');
+            }
+            updateCorrosionPhysics();
+        }
+
+        function togglePlay(shouldPlay) {
+            state.isPlaying = shouldPlay !== undefined ? shouldPlay : !state.isPlaying;
+            if (state.isPlaying) {
+                dom.playIcon.className = "fa-solid fa-pause";
+                dom.playBtnTxt.innerText = "JEDA SIMULASI";
+                dom.playBtn.classList.replace('from-amber-600', 'from-rose-600');
+                dom.playBtn.classList.replace('to-amber-500', 'to-rose-500');
+            } else {
+                dom.playIcon.className = "fa-solid fa-play";
+                dom.playBtnTxt.innerText = "MULAI SIMULASI";
+                dom.playBtn.classList.replace('from-rose-600', 'from-amber-600');
+                dom.playBtn.classList.replace('to-rose-500', 'to-amber-500');
+            }
+        }
+
+        function resetSimulation() {
+            state.currentDay = 0;
+            togglePlay(false);
+            updateCorrosionPhysics();
+            camera.position.set(0, 12, 38);
+            controls.target.set(0, 4, 0);
+        }
+
+        function setCameraFocus(focus) {
+            state.selectedFocus = focus;
+            if (focus === 'conv') {
+                controls.target.set(-8, 5, 0);
+                camera.position.set(-8, 7, 14);
+            } else if (focus === 'eco') {
+                controls.target.set(8, 5, 0);
+                camera.position.set(8, 7, 14);
+            } else {
+                controls.target.set(0, 4, 0);
+                camera.position.set(0, 12, 38);
+            }
+        }
+
+        function setupEventListeners() {
+            dom.playBtn.addEventListener('click', () => togglePlay());
+            dom.resetBtn.addEventListener('click', resetSimulation);
+
+            dom.speedSlider.addEventListener('input', (e) => {
+                state.simSpeed = parseFloat(e.target.value);
+                dom.speedLabel.innerText = `${state.simSpeed.toLocaleString('id-ID', { maximumFractionDigits: 2 })} hari/detik`;
+            });
+
+            dom.slider.addEventListener('input', (e) => {
+                state.currentDay = parseFloat(e.target.value);
+                updateCorrosionPhysics();
+            });
+
+            document.querySelectorAll('.milestone-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    state.currentDay = parseFloat(btn.dataset.day);
+                    updateCorrosionPhysics();
+                });
+            });
+
+            dom.cutawayBtn.addEventListener('click', () => toggleCutawayMode());
+            dom.highlightCracksBtn.addEventListener('click', toggleHighlightCracks);
+
+            dom.rainBtn.addEventListener('click', () => {
+                state.isRain = !state.isRain;
+                rainParticles.visible = state.isRain;
+                dom.envRainStatus.innerText = state.isRain ? "Aktif" : "Tidak";
+                dom.rainBtn.classList.toggle('bg-blue-600');
+            });
+
+            dom.startCinematicBtn.addEventListener('click', () => {
+                dom.openingOverlay.classList.add('opacity-0', 'pointer-events-none');
+                runCinematicOpening();
+            });
+
+            dom.salinitySlider.addEventListener('input', (e) => {
+                state.salinity = parseFloat(e.target.value);
+                dom.salinityVal.innerText = `${state.salinity} ppt`;
+                dom.envSalinityDisplay.innerText = `${state.salinity} ppt`;
+                updateCorrosionPhysics();
+            });
+
+            dom.tempSlider.addEventListener('input', (e) => {
+                state.temp = parseFloat(e.target.value);
+                dom.tempVal.innerText = `${state.temp} °C`;
+                dom.envTempDisplay.innerText = `${state.temp} °C`;
+                updateCorrosionPhysics();
+            });
+
+            dom.humiditySlider.addEventListener('input', (e) => {
+                state.humidity = parseFloat(e.target.value);
+                dom.humidityVal.innerText = `${state.humidity}%`;
+                updateCorrosionPhysics();
+            });
+
+            dom.chlorideSlider.addEventListener('input', (e) => {
+                state.chlorideRate = parseInt(e.target.value);
+                const labels = ["Sangat Rendah", "Rendah", "Sedang", "Tinggi", "Ekstrem"];
+                dom.chlorideVal.innerText = labels[state.chlorideRate - 1] || "Tinggi";
+                updateCorrosionPhysics();
+            });
+
+            window.addEventListener('keydown', (e) => {
+                if (e.key === ' ') {
+                    e.preventDefault();
+                    togglePlay();
+                } else if (e.key === '1') {
+                    setCameraFocus('conv');
+                } else if (e.key === '2') {
+                    setCameraFocus('eco');
+                } else if (e.key.toLowerCase() === 'r') {
+                    resetSimulation();
+                }
+            });
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        let previousFrameTime = null;
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const elapsedTime = clock.getElapsedTime();
+            const deltaSeconds = previousFrameTime === null ? 0 : Math.min(0.1, Math.max(0, elapsedTime - previousFrameTime));
+            previousFrameTime = elapsedTime;
+
+            if (state.isPlaying) {
+                // Perkembangan menggunakan delta waktu, bukan penambahan per frame, agar stabil di 60/144 Hz.
+                state.currentDay += state.simSpeed * deltaSeconds;
+                if (state.currentDay >= state.maxDays) {
+                    state.currentDay = state.maxDays;
+                    togglePlay(false);
+                }
+                updateCorrosionPhysics();
+            }
+
+            animateEnvironment(elapsedTime);
+            updateChlorideVisualization(elapsedTime);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function() {
+            initThree();
+            setupEventListeners();
+            updateCorrosionPhysics();
+            animate();
+        };
+    </script>
+</body>
+</html>
+```
